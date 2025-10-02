@@ -13,8 +13,9 @@ struct ReturnBuddyApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView(context: persistenceController.container.viewContext)
+            ReceiptListView()
                 .environment(\.managedObjectContext, persistenceController.container.viewContext)
         }
     }
 }
+

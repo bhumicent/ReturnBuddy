@@ -10,52 +10,70 @@ struct ReceiptListView: View {
     )
     private var receipts: FetchedResults<Receipt>
 
+    @State private var showingAddReceipt = false
+    @State private var refreshID = UUID()
+
     var body: some View {
         NavigationStack {
             List {
-                ForEach(receipts) { receipt in
-                    NavigationLink(destination: ReceiptDetailsView(receipt: receipt)) {
-                        ReceiptRow(receipt: receipt)   // ✅ moved out into its own view
+                if receipts.isEmpty {
+                    VStack(alignment: .center) {
+                        Text("No receipts yet")
+                            .foregroundColor(.secondary)
+                        Text("Tap + to scan a receipt")
+                            .foregroundColor(.secondary)
+                            .font(.caption)
                     }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                } else {
+                    ForEach(receipts) { receipt in
+                        NavigationLink(destination: ReceiptDetailsView(receipt: receipt)) {
+                            ReceiptRow(receipt: receipt)
+                        }
+                    }
+                    .onDelete(perform: deleteReceipts)
                 }
-                .onDelete(perform: deleteReceipts)
             }
+            .id(refreshID)
             .navigationTitle("Receipts")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: { addDummyReceipt() }) {
-                        Label("Add Test", systemImage: "plus")
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    // ✅ Open AddReceiptView
+                    Button(action: { showingAddReceipt = true }) {
+                        Label("Add Receipt", systemImage: "plus")
                     }
+
+                    // Optional: Refresh button for debugging
+                    Button(action: { refreshID = UUID() }) {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAddReceipt) {
+                NavigationStack {
+                    AddReceiptView()
+                        .environment(\.managedObjectContext, viewContext)
                 }
             }
             .onAppear {
-                print("📦 ReceiptListView loaded with \(receipts.count) receipts")
+                print("📦 ReceiptListView onAppear — receipts.count = \(receipts.count)")
                 for r in receipts {
-                    print("   ↳ store=\(r.storeName ?? "nil"), total=\(r.total), date=\(String(describing: r.purchaseDate))")
+                    print("   ↳ \(r.storeName ?? "nil") total=\(r.total) createdAt=\(String(describing: r.createdAt))")
                 }
             }
         }
     }
 
-    // MARK: - Delete
     private func deleteReceipts(offsets: IndexSet) {
         withAnimation {
             offsets.map { receipts[$0] }.forEach(viewContext.delete)
-            do { try viewContext.save() }
-            catch { print("❌ Delete error: \(error.localizedDescription)") }
+            do {
+                try viewContext.save()
+                print("🗑️ Deleted receipts, saved context")
+            } catch {
+                print("❌ Delete save error:", error.localizedDescription)
+            }
         }
-    }
-
-    // MARK: - Debug helper
-    private func addDummyReceipt() {
-        let r = Receipt(context: viewContext)
-        r.id = UUID()
-        r.storeName = "Debug Store"
-        r.purchaseDate = Date()
-        r.total = 42.50
-        r.createdAt = Date()
-        do { try viewContext.save(); print("✅ Dummy saved") }
-        catch { print("❌ Dummy save error: \(error.localizedDescription)") }
     }
 }
 
@@ -67,25 +85,21 @@ struct ReceiptRow: View {
                 .font(.headline)
 
             HStack {
-                if let purchaseDate = receipt.purchaseDate {
-                    Text(purchaseDate, style: .date)
+                if let d = receipt.purchaseDate {
+                    Text(d, style: .date)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-
                 Spacer()
-
                 Text("$\(receipt.total, specifier: "%.2f")")
-                    .font(.subheadline)
-                    .bold()
+                    .font(.subheadline).bold()
             }
 
-            // Debug row
-            Text("Debug -> id: \(receipt.id?.uuidString ?? "nil")")
+            Text("Debug id: \(receipt.id?.uuidString ?? "nil")")
                 .font(.caption)
                 .foregroundColor(.gray)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
     }
 }
 

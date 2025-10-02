@@ -1,3 +1,4 @@
+// PersistenceController.swift
 import CoreData
 
 struct PersistenceController {
@@ -6,14 +7,24 @@ struct PersistenceController {
     let container: NSPersistentContainer
 
     init(inMemory: Bool = false) {
-        container = NSPersistentContainer(name: "ReturnBuddy") // 👈 must match your .xcdatamodeld file name
+        // Replace "ReturnTracker" with your actual .xcdatamodeld name if different
+        container = NSPersistentContainer(name: "ReturnBuddy")
+
         if inMemory {
             container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
         }
-        container.loadPersistentStores { _, error in
+
+        container.loadPersistentStores { storeDescription, error in
             if let error = error as NSError? {
-                fatalError("Unresolved error \(error), \(error.userInfo)")
+                fatalError("Unresolved error loading persistent stores: \(error), \(error.userInfo)")
+            } else {
+                print("📦 Loaded persistent store:", storeDescription.url?.absoluteString ?? "(no url)")
             }
         }
+
+        // Very important for multi-context changes / background saves
+        container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        container.viewContext.automaticallyMergesChangesFromParent = true
     }
 }
+
